@@ -1,0 +1,650 @@
+<h1 id="howto-asix-vm_deployment_and_provisioning">HowTo-ASIX-VM_Deployment_and_Provisioning</h1>
+<h2 id="integrants-marc-fornés-i-rubén-rodríguez.">Integrants: Marc Fornés i Rubén Rodríguez.</h2>
+<h2 id="índex">Índex:</h2>
+<ol type="1">
+<li><a href="#id1">Temes a tractar i diferències i utilitats de cada Software/Eines</a></li>
+<li><a href="#id2">Diferències entre Ansible, Terraform, Vagrant i Packer</a></li>
+<li><a href="#id3">Passos a fer en Terraform i alguns conceptes de Terraform i AWS</a></li>
+<li><a href="#id4">Explicació dels fitxers que utilitzarem</a></li>
+<li><a href="#id5">Configuració de l’arquitectura AWS amb Terraform</a></li>
+<li><a href="#id6">Utilització de Packer per crear una imatge i Ansible per instal·lar-hi el software</a></li>
+<li><a href="#id7">Conclusions finals</a></li>
+<li><a href="#id8">Bibliografía</a></li>
+</ol>
+<h2 id="temes-a-tractar">Temes a tractar:<a name="id1"></a></h2>
+<p><strong>VM Deployment and Provisioning tools</strong> * <strong>Cloud Managment Tools</strong> * <strong>Packer</strong> * <strong>Vagrant</strong> * <strong>Ansible</strong> * <strong>Terraform</strong></p>
+<h2 id="concepte-cloud-managment-tools">Concepte Cloud Managment Tools:</h2>
+<p>Són eines per a que els administradors puguin gestionar productes i serveis del cloud en diferents plataformes Cloud. Permet per tant, el concepte d’orquestració de tots els recusos. Per recursos podem entendre desde accés d’usuaris (permisos), dades (bbdd), aplicacions (soft), serveis (API), màquines virtuals (servers/hosts). Permet tenir tots aquests recursos monitoritzats i poder aplicar de forma ràpida i automatizada l’escalada de recursos (infraestructura) en cas de necessitat produïda per canvis. Normalment es comuniquen amb les API dels proveïdors de CLOUD per controlar y modificar recursos.</p>
+<h2 id="concepte-iac-i-utilitats-i-característiques-de-cada-eina-iac">Concepte IaC i utilitats i característiques de cada eina IaC:</h2>
+<p><strong>IaC (Infrastructure as Code):</strong></p>
+<p>Són eines/softwares de ‘Development Operations’ on a la pràctica s’utiltizen fitxers tipus scripts per configurar l’estructura de forma automatitzada, és a dir, quines màquines virtuals/dockers necessitarem segons els recursos (memòria de disc, ampla de banda, RAM, CPU..). A destacar que gràcies a la ‘IaC’ es molt fàcil escalar recursos (i realitzar canvis) segons les necessitats dels serveis oferts i garanteix aconseguir sempre el mateix entorn/resultat.</p>
+<p>Les eines ‘DevOps’ del tipus IaC tenen 2 estils:</p>
+<ul>
+<li><p><em>Estil procedimental:</em> Pas a pas (secuencialment), anem especificant en el codi que fer consecutivament i d’on agafar els repositoris/recursos. (cas Ansible)</p></li>
+<li><p><em>Estil declaratiu:</em> Vull aquest resultat final, buscat la vida. (cas Terraform)</p></li>
+</ul>
+<p><strong>Ansible:</strong></p>
+<p>És principalement un gestor de configuració. Hem de veure Ansible com un instal·lador/configurador de software remot a màquines o servidor ja existents o UP (aixecats). Hem de tenir present que Ansible té repetibilitat, això vol dir que si executem el playbook sempre obtindrem el mateix resultat, de forma que si l’executem 2 vegades, tindrem (P.E) dos instalacions iguals.</p>
+<p><em>PROS:</em> Multipltaforma, open-source, free.</p>
+<p><em>CONTR:</em> És lent i té dependencies de serveis/paquets de 3ers (tema mutabilitat).</p>
+<p><strong>Packer by HashiCorp:</strong></p>
+<p>Packer es una eina ‘Open Source’ que utilitza els formats ‘.json’ (format obert utilitzat como alternativa a XML per la trasnferència de dades estructurades entre un servidor Web i una aplicación Web) i ‘.hcl’ (format per proporcionar funcionalitats automatitzades de documentació) per automatitzar la creació d’imatges.</p>
+<p>Packer agafa una imatge (en el nostre cas una AMI (Amazon Machine Image)) habitualment amb un S.O, crea una instància (Virtual Machine) amb aquesta imatge, instal·la el S.O en la màquina objectiu, obre un servidor SSH en la instància creada i vía SSH, Ansible instal·la les dependències que constin en el ‘playbook’ en la instància. Finalment Packer crea una nova imatge amb tot el conjunt (S.O + software instal·lat per Ansible) que anomenem ‘template’.</p>
+<p>Packer és molt similar a Ansible però queda limitat a VM. Els seus templates d’imatges sempre tenen la mateixa versió que definim en el ‘Packer Build’. Permet tenir doncs, una infraestructura inmutable (és a dir, que un cop es crea o s’instal·la alguna cosa, aquest mai serà modificat).</p>
+<p>Aquí sota definim un exemple de com treballa Packer:</p>
+<ul>
+<li><p><strong>Pas 1:</strong> Tenim una VM amb diversos softwares i volem substituir ‘Apache’ per ‘NGINX’.</p></li>
+<li><p><strong>Pas 2:</strong> Executem Packer partint d’una template ‘python_apache_mysql’ canviant el ‘playbook’ d’Ansible fent que desinstal·li ‘Apache’ i instal·li ‘NGINX’, llavors tindrem 2 VM, la inicial i la desitjada.</p></li>
+<li><p><strong>Pas 3:</strong> Un cop hem comprovat que tot està bé, donem de baixa la inicial i donem d’alta la desitjada.</p></li>
+</ul>
+<figure>
+<img src="recursos_imatges/packer.png?raw=true" title="Packer" alt="" /><figcaption>Imatge Packer</figcaption>
+</figure>
+<p><em>PROS:</em> Multipltaforma, inmutabilitat.</p>
+<p><em>CONTR:</em> Només per a VM.</p>
+<p><strong>Vagrant by HashiCorp:</strong></p>
+<p>Gestiona únicament màquines virtuals (VM) i en un volum petit. S’utilitza principalment per a desenvolupadors de codi que busquin replicar escenaris de desenvolupament/test. Així executant Vagrant tots els desenvolupadors d’un mateix equip tindran el mateix entorn. (mateixes versions de soft)</p>
+<p><strong>Terraform by HashiCorp:</strong></p>
+<p>Es un ‘IaC’ que construeix/aixeca/desmonta/escala/replica i gestiona infraestructura (per infraestructura entenem conjunt de màquines i xarxes).</p>
+<p>Podem gestionar diverses subestructures de diversos servidors Cloud només loggejats a Terraform per tant podem mantenir la nostra infraestructura obiant quín és el servidor Cloud on son els recursos (hosts/servidors/serveis/xarxes). Utilitza fitxers tipus <em>.tf</em> programats amb llenguatge ‘HCL’ on definim l’escenari desitjat. També tenim el ‘TF CLI’ (CLI de Terraform) on podem executar el ‘terraform plan’, què compararà l’escenari/estat actual amb el desitjat i comprovarà les operacions a realitzar o els canvis. Això és molt útil si només volem saber quins canvis és produïràn respecte a la infraestructura existent.</p>
+<p>El pas ‘terraform apply’ serà on Terraform mitjançant les API (Application Programming Interface) i els token API, es communicarà amb el(s) proveïdors per executar les ordres per conseguir l’escenari desitjat.</p>
+<p><em>PROS:</em> Es open-source, gratutita i multiplatforma. Es adecuat per fer canvis en infraestructures grans, amb múltiples components i servidors de Cloud.</p>
+<h2 id="diferències-entre-ansible-terraform-i-vagrant">Diferències entre Ansible, Terraform i Vagrant:<a name="id2"></a></h2>
+<div>
+<p style="text-align:center;">
+<img src="https://cdn.ttgtmedia.com/rms/onlineimages/networking-ansible_vs_terraform_vs_vagrant-f.png" alt="JuveYell" width="1000px">
+</p>
+</div>
+<h2 id="passos-a-seguir-en-terraform-per-aixercar-linfraestrucutra-del-nostre-projecte-i-alguns-conceptes-de-terraform-i-aws">Passos a seguir en Terraform per aixercar l’infraestrucutra del nostre projecte i alguns conceptes de Terraform i AWS:<a name="id3"></a></h2>
+<p><strong>Passos a realitzar</strong>:</p>
+<ul>
+<li>Creació d’una ‘VPC’.</li>
+<li>Afegir dos ‘Public Subnet’, dos ‘Private Subent’ (cada parell en una regió d’una mateixa zona) i el GW.</li>
+<li>Afegir ‘Route Table’ i la ruta per defecte de la ‘Private Subnet’ i de la ‘Public Subnet’ + vinculació d’aquestes).</li>
+<li>Afegir les interficies NAT per poder sortir a internet.</li>
+<li>Creació i vinculació a una interficie del ‘ALB’ una Elastic IP (pública).</li>
+<li>Creació d’un servei ‘ALB’ (Application Load Balancer de proxy invers).</li>
+<li>Creació d’un ‘SecurityGroup’ per la ‘Private Subnet’ i la ‘Public Subnet’.</li>
+<li>Configuració de l’AutoScaling i creació d’un “target group” i vinculació amb el ALB.</li>
+<li>Configuració de les alarmes del ‘CloudWatch’ (més del 60 % CPU) i accions (aixecar una altre instancia de la AMI).</li>
+</ul>
+<p><strong>Alguns conceptes sobre la sintàxi de Terraform:</strong></p>
+<ul>
+<li><strong>resource</strong> –&gt; Accedir a un recurs del proveïdor.</li>
+<li><strong>var.XXX</strong> –&gt; Referenciem una variable del fitxer ‘.tfvars’.</li>
+<li><strong>${var.XXX}</strong> -p 6000 –&gt; Fem interpolació entre text dins d’una variable i text constant.</li>
+<li><strong>data.</strong> –&gt; Accedir a dades d’algun fitxer. Similar a un ‘simbolic link’.</li>
+<li><strong>${ }</strong> –&gt; Una forma de cridar una variable.</li>
+<li><strong>[]</strong> –&gt; Llista que espera més d’un resultat.</li>
+<li><strong>file</strong> –&gt; Referència a les dades dins d’un fitxer.</li>
+<li><strong>tag</strong> –&gt; Com es dirà a AWS el nostre recurs.</li>
+<li><strong>$(element(var.llista, count.index))</strong> –&gt; Dins d’una llista agafa tots els valors.</li>
+</ul>
+<p><strong>Ordres més importants de Terraform:</strong></p>
+<ul>
+<li><strong>terraform init</strong> –&gt; Inicialitza refrescant/baixant tots els fitxers de configuració dins del directori de treball (proveïdors, dependències, pluggins etc). <em>IMPORTANT!!:</em> Executar quan s’afegeixi/canviï un proveïdor.</li>
+<li><strong>terraform plan -auto-approve</strong> –&gt; Veiem els canvis que és faràn sense necessitat de dir ‘yes’.</li>
+<li><strong>terraform apply -auto-approve</strong> –&gt; Executem el plà de terraform sense necessitat de dir ‘yes’.</li>
+<li><strong>terraform fmt</strong> –&gt; Identar correctament el fitxer.</li>
+<li><strong>terraform destroy</strong> –&gt; Desmontem tot el que hem fet.</li>
+<li><strong>terraform state show aws_instance.nginx_instance</strong> –&gt; Mostra informació del ‘resource’ escollit.</li>
+<li><strong>terraform refresh</strong> –&gt; Llegeix la configuració actual de tots els objectes remots gestionats i actualitza l’estat de Terraform perquè coincideixi.</li>
+</ul>
+<p><strong>Alguns conceptes i sigles d’AWS:</strong></p>
+<ul>
+<li><strong>arn</strong>: Els noms de recursos d’Amazon (ARN) identifiquen de forma exclusiva els recursos d’AWS.</li>
+<li><strong>tag</strong>: Argument que permet identificiar els recursos configurats pel client a AWS.</li>
+<li><strong>SNS</strong>: Simple Notification Service.</li>
+<li><strong>ASG</strong>: Auto Scaling Group.</li>
+</ul>
+<h2 id="explicació-dels-fitxers-que-utilitzarem">Explicació dels fitxers que utilitzarem:<a name="id4"></a></h2>
+<ul>
+<li><strong>main.tf</strong>: Fitxer principal on ficarem les coses més importants per el nostre treball.</li>
+<li><strong>IGW_vpc_subnets.tf</strong>: Fitxer on configurarem tot el que tingui que veure amb la xarxa (Internet GW, NAT GW, VPC, Elastic IP, Subnets, Route Tables).</li>
+<li><strong>cloud_watch.tf</strong>: Fitxer on crearem el CloudWatch el tipus d’alarma (per controlar la CPU) i polítiques d’escalada i de baixada.</li>
+<li><strong>datasources.tf</strong>: Fitxer on posarem quina AMI utilitzarà la nostra instància.</li>
+<li><strong>outputs.tf</strong>: Fitxer que ens servirà d’ajuda per quan fem ‘terraform plan’ i ‘terraform apply’, ens mostri per pantalla el valor d’algun resource.</li>
+<li><strong>providers.tf</strong>: Fitxer on especificarem quin és el nostre proveïdor (AWS), les nostres credencials…</li>
+<li><strong>security_groups.tf</strong>: Fitxer on especificarem els ‘SecurityGroups’ que tindràn els diferents recursos.</li>
+<li><strong>terraform.tfstate</strong>: Fitxer que guarda l’estat actual de l’arquitecura si hem fet un ‘terraform plan’ o un ‘terraform apply’.</li>
+<li><strong>terraform.tfvars</strong>: Fitxer on declarem variables que cridarem en diferents fitxers.</li>
+<li><strong>userdata[2].tpl</strong>: Script provisional (això ho farem amb Ansible) que executa codi bash (perquè la nostra imatge és Ubuntu).</li>
+</ul>
+<h2 id="configuració-de-larquitectura-aws-amb-terraform">Configuració de l’arquitectura AWS amb Terraform:<a name="id5"></a></h2>
+<p>Per començar, obrirem el ‘Visual Studio Code’, i instal·larem l’extensió necessaria per poder començar a treballar:</p>
+<figure>
+<img src="recursos_imatges/terraform_extension.jpg?raw=true" title="Terraform" alt="" /><figcaption>Terraform Extension</figcaption>
+</figure>
+<p>A continuació, editarem el següent fitxer (‘$home/.aws/credentials’) on crearem un perfil (li podem posar el nom que vulguem) i li ficarem la nostra ‘aws_access_key_id’ i ‘aws_secret_access_key’:</p>
+<figure>
+<img src="recursos_imatges/aws_credentials.jpg?raw=true" title="Credentials" alt="" /><figcaption>AWS credentials</figcaption>
+</figure>
+<p>Un cop fet tot el mencionat, començarem amb la creació i edició dels fitxers explicats anteriorment.</p>
+<p><em>IMPORTANT!!:</em> Hi ha algún error en el codi i no funciona correctament el desplegament (no fa la funció descrita).</p>
+<p><strong>Fitxer ‘main.tf’:</strong></p>
+<pre><code>variable Azones { description = &quot;zones disponibles&quot; }
+variable Azone { description = &quot;zona única a assignada&quot; }
+variable Azone2 { description = &quot;zona única b assignada&quot; }
+
+resource &quot;aws_lb&quot; &quot;loadbalancer&quot; {
+  name                       = &quot;terraform-alb&quot;
+  load_balancer_type         = &quot;application&quot;
+  subnets                    = [aws_subnet.public_subnet.id,aws_subnet.public_subnet_2.id]
+  security_groups            = [aws_security_group.permetre_http_s.id]
+  enable_deletion_protection = false
+  tags                       = {Name = &quot;terraform-alb&quot;}
+}
+
+resource &quot;aws_lb_listener&quot; &quot;web_http&quot; { 
+  load_balancer_arn = aws_lb.loadbalancer.arn
+  port              = &quot;80&quot;
+  protocol          = &quot;HTTP&quot;
+   default_action {
+    
+    type             = &quot;forward&quot;
+    target_group_arn = aws_lb_target_group.test1.arn
+  }
+}
+
+resource &quot;aws_lb_target_group_attachment&quot; &quot;register_instance_to_group&quot; {
+  target_group_arn = aws_lb_target_group.test1.arn
+  target_id        = aws_instance.nginx1.id
+  port             = 80
+}
+
+resource &quot;aws_lb_target_group_attachment&quot; &quot;register_instance_to_group2&quot; {
+  target_group_arn = aws_lb_target_group.test1.arn
+  target_id        = aws_instance.nginx3.id
+  port             = 80
+}
+
+resource &quot;aws_lb_target_group&quot; &quot;test1&quot; {
+  name     = &quot;targetgrouplb1&quot;
+  port     = 80
+  protocol = &quot;HTTP&quot;
+  vpc_id   = aws_vpc.main_vpc.id
+
+  health_check {
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    interval            = 30
+  }
+}
+
+variable ssh_pub { 
+  description = &quot;Ruta on estan la clau pública en local i que es propagarà per a cada instancia.&quot; 
+}
+
+resource &quot;aws_key_pair&quot; &quot;key_pair_server_web&quot; {
+  key_name   = &quot;server_web_key&quot;
+  public_key = file(var.ssh_pub)  
+}
+
+resource &quot;aws_instance&quot; &quot;nginx1&quot; {    
+  instance_type = &quot;t3.micro&quot;
+  ami           = data.aws_ami.server_web.id
+  key_name      =  &quot;server_web_key&quot;               
+  user_data     = file(&quot;userdata.tpl&quot;)
+  monitoring    = true
+  root_block_device {
+    volume_size = 10
+  }
+
+  tags = { 
+    Name = &quot;nginx-node1&quot; 
+  } 
+
+  network_interface {
+    network_interface_id = aws_network_interface.loadbalancer.id
+    device_index         = 0
+  } 
+}
+
+resource &quot;aws_instance&quot; &quot;nginx3&quot; {    
+  instance_type = &quot;t3.micro&quot;
+  ami           = data.aws_ami.server_web.id
+  key_name      = &quot;server_web_key&quot;   
+  user_data     = file(&quot;userdata2.tpl&quot;)
+  monitoring    = true
+
+  root_block_device {
+    volume_size = 10
+  }
+
+  tags = { 
+    Name = &quot;nginx-node3&quot;
+  } 
+
+  network_interface {
+    network_interface_id = aws_network_interface.loadbalancer.id
+    device_index         = 0 
+  }
+}</code></pre>
+<p><strong>Fitxer ‘IGW_vpc_subnets.tf’:</strong></p>
+<pre><code>resource &quot;aws_internet_gateway&quot; &quot;main_internet_gateway&quot; {
+  vpc_id = aws_vpc.main_vpc.id
+  tags   = {Name = &quot;principal-igw&quot;}
+}
+
+#  VPC
+
+resource &quot;aws_vpc&quot; &quot;main_vpc&quot; {
+  cidr_block = &quot;10.0.0.0/16&quot;
+  tags       = {Name = &quot;principal&quot;}
+}
+
+# aws_main_route_table_association = Provides a resource for managing the main routing table of a VPC.
+
+resource &quot;aws_main_route_table_association&quot; &quot;default&quot; {
+  count          = &quot;1&quot;
+  vpc_id         = aws_vpc.main_vpc.id
+  route_table_id = aws_route_table.main_public_rt[count.index].id
+}
+
+# SUBNET PUBLICA 1
+resource &quot;aws_subnet&quot; &quot;public_subnet&quot; {
+  vpc_id                  = aws_vpc.main_vpc.id
+  cidr_block              = &quot;10.0.0.0/24&quot;
+  map_public_ip_on_launch = true
+  availability_zone       = var.Azone
+  tags                    = {Name = &quot;principal-public&quot;}
+  depends_on              = [aws_internet_gateway.main_internet_gateway]
+}
+
+resource &quot;aws_route_table&quot; &quot;main_public_rt&quot; {
+  count  = &quot;1&quot;
+  vpc_id = aws_vpc.main_vpc.id
+  tags   = {Name = &quot;principal_public_rt&quot;}
+}
+
+resource &quot;aws_route&quot; &quot;default_route_pu&quot; {
+  count                  = &quot;1&quot;
+  route_table_id         = aws_route_table.main_public_rt[count.index].id
+  destination_cidr_block = &quot;0.0.0.0/0&quot;
+  gateway_id             = aws_internet_gateway.main_internet_gateway.id
+}
+
+resource &quot;aws_route_table_association&quot; &quot;main_public_assoc&quot; {
+  count          = &quot;1&quot;
+  subnet_id      = aws_subnet.public_subnet.id
+  route_table_id = aws_route_table.main_public_rt[count.index].id
+}
+
+# SUBNET PUBLICA 2
+resource &quot;aws_subnet&quot; &quot;public_subnet_2&quot; {
+  vpc_id                  = aws_vpc.main_vpc.id
+  cidr_block              = &quot;10.0.1.0/24&quot;
+  map_public_ip_on_launch = true
+  availability_zone       = var.Azone2
+  tags                    = {Name = &quot;principal-public2&quot;}
+  depends_on              = [aws_internet_gateway.main_internet_gateway]
+}
+
+resource &quot;aws_route&quot; &quot;route&quot; {
+  route_table_id         = &quot;${aws_vpc.main_vpc.main_route_table_id}&quot;
+  destination_cidr_block = &quot;0.0.0.0/0&quot;
+  gateway_id             = aws_internet_gateway.main_internet_gateway.id
+}
+
+resource &quot;aws_route_table_association&quot; &quot;main_public_assoc2&quot; {
+  count          = &quot;1&quot;
+  subnet_id      = aws_subnet.public_subnet_2.id
+  route_table_id = aws_route_table.main_public_rt[count.index].id
+}
+
+# Network Interface &#39;LB&#39;
+resource &quot;aws_network_interface&quot; &quot;loadbalancer&quot;{
+  private_ips     = [&quot;10.0.0.8&quot;]
+  subnet_id       = aws_subnet.public_subnet.id
+  security_groups = [aws_security_group.permetre_http_s.id]
+}
+
+# Elastic IP
+resource &quot;aws_eip&quot; &quot;elastic&quot; {
+ associate_with_private_ip = &quot;10.0.0.8&quot;
+ vpc                       = true
+ depends_on                = [aws_internet_gateway.main_internet_gateway]
+}</code></pre>
+<p><strong>Fitxer ‘cloud_watch.tf’:</strong></p>
+<pre><code>resource &quot;aws_autoscaling_policy&quot; &quot;web_policy_up&quot; {
+  name                      = &quot;web_policy_up&quot;
+  adjustment_type           = &quot;ChangeInCapacity&quot;
+  estimated_instance_warmup = 120
+  autoscaling_group_name    = aws_autoscaling_group.group_autoscal.name
+  policy_type               = &quot;TargetTrackingScaling&quot;
+
+  target_tracking_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = &quot;ASGAverageCPUUtilization&quot;
+    }
+
+    target_value = 60.0
+  }
+}
+
+resource &quot;aws_cloudwatch_metric_alarm&quot; &quot;web_server_ALARM_up&quot; {
+  alarm_name          = &quot;web_server_CPU_alarm_up&quot;
+  comparison_operator = &quot;GreaterThanOrEqualToThreshold&quot;
+  evaluation_periods  = &quot;2&quot;  
+  metric_name         = &quot;CPUUtilization&quot;
+  namespace           = &quot;AWS/EC2&quot;
+  period              = &quot;120&quot;
+  statistic           = &quot;Average&quot;
+  threshold           = &quot;60&quot;
+
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.group_autoscal.name
+  }
+
+  alarm_description = &quot;This metric monitors ec2 cpu utilization&quot;
+  alarm_actions     = [&quot;${aws_autoscaling_policy.web_policy_up.arn}&quot;]
+  actions_enabled = true
+}
+
+resource &quot;aws_autoscaling_policy&quot; &quot;web_policy_down&quot; {
+  name                   = &quot;web_policy_down&quot;
+  scaling_adjustment     = -1
+  adjustment_type        = &quot;ChangeInCapacity&quot;
+  cooldown               = 120 
+  autoscaling_group_name = aws_autoscaling_group.group_autoscal.name
+}
+
+resource &quot;aws_cloudwatch_metric_alarm&quot; &quot;web_server_ALARM_down&quot; {
+  alarm_name          = &quot;web_server_CPU_alarm_down&quot;
+  comparison_operator = &quot;LessThanOrEqualToThreshold&quot;
+  evaluation_periods  = &quot;2&quot;  
+  metric_name         = &quot;CPUUtilization&quot;
+  namespace           = &quot;AWS/EC2&quot;
+  period              = &quot;120&quot;
+  statistic           = &quot;Average&quot;
+  threshold           = &quot;10&quot;
+
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.group_autoscal.name
+  }
+
+  alarm_description = &quot;This metric monitors ec2 cpu utilization&quot;
+  alarm_actions     = [&quot;${aws_autoscaling_policy.web_policy_down.arn}&quot;]
+}</code></pre>
+<p><strong>Fitxer ‘datasources.tf’:</strong></p>
+<pre><code>data &quot;aws_ami&quot; &quot;server_web&quot; {
+    most_recent = true
+    owners      = [&quot;099720109477&quot;]
+    filter {
+        name   = &quot;name&quot;
+        values = [&quot;ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-*&quot;]
+    }
+
+    filter {
+      name   = &quot;virtualization-type&quot;
+      values = [&quot;hvm&quot;]
+    }
+}</code></pre>
+<p><strong>Fitxer ‘outputs.tf’:</strong></p>
+<pre><code>output &quot;elastic_IP&quot; {
+  count = &quot;1&quot;
+  value = aws_eip.loadbalancer[count.index].public_ip
+}</code></pre>
+<p><strong>Fitxer ‘providers.tf’:</strong></p>
+<pre><code>terraform {
+  required_providers {
+    aws = {
+      source = &quot;hashicorp/aws&quot;
+    }
+  }
+}
+
+provider &quot;aws&quot; {
+  region                   = &quot;us-west-2&quot;
+  shared_credentials_files = [&quot;~/.aws/credentials&quot;]
+  profile                  = &quot;fornesIAM&quot;
+}</code></pre>
+<p><strong>Fitxer ‘security_groups.tf’:</strong></p>
+<pre><code>resource &quot;aws_security_group&quot; &quot;permetre_http_s&quot; {
+  name        = &quot;permetre_trafic_http_s&quot;
+  description = &quot;Permetre trafic HTTP i HTTPS inbound (entrada a la pública)&quot;
+  vpc_id      = aws_vpc.main_vpc.id
+
+  ingress {
+    description      = &quot;SSH&quot;
+    from_port        = 22
+    to_port          = 22
+    protocol         = &quot;tcp&quot;
+    cidr_blocks      = [&quot;0.0.0.0/0&quot;] 
+  }
+
+  ingress {
+    description      = &quot;HTTP from VPC&quot;
+    from_port        = 80
+    to_port          = 80
+    protocol         = &quot;tcp&quot;
+    cidr_blocks      = [&quot;0.0.0.0/0&quot;] 
+  }
+
+  egress {
+    from_port        = 0
+    to_port          = 0
+    protocol         = &quot;-1&quot;
+    cidr_blocks      = [&quot;0.0.0.0/0&quot;]
+    ipv6_cidr_blocks = [&quot;::/0&quot;]
+  }
+
+  tags = {
+    Name = &quot;permetre_http_s&quot;
+  }
+}</code></pre>
+<p><strong>Fitxer ‘terraform.tfstate’:</strong></p>
+<pre><code>{
+  &quot;version&quot;: 4,
+  &quot;terraform_version&quot;: &quot;1.1.9&quot;,
+  &quot;serial&quot;: 1351,
+  &quot;lineage&quot;: &quot;f7f56707-39fb-5de8-9713-233ce0b29099&quot;,
+  &quot;outputs&quot;: {},
+  &quot;resources&quot;: []
+}</code></pre>
+<p><strong>Fitxer ‘terraform.tfvars’:</strong></p>
+<pre><code>ssh_pub = &quot;/var/tmp/projecte_asix2/ssh_keys/id_ed25519.pub&quot;
+Azones  = [&quot;us-west-2a&quot;, &quot;us-west-2b&quot;]
+Azone   = &quot;us-west-2a&quot;
+Azone2  = &quot;us-west-2b&quot;</code></pre>
+<p><strong>Fitxer ‘userdata.tpl’:</strong></p>
+<pre><code>#!/bin/bash
+
+sudo apt-get update -y 
+sudo apt install nginx -y
+systemctl start nginx
+systemctl enable nginx</code></pre>
+<p><strong>Fitxer ‘userdata2.tpl’:</strong></p>
+<pre><code>#!/bin/bash
+
+sudo apt-get update -y 
+sudo apt install nginx -y
+systemctl start nginx
+systemctl enable nginx
+
+echo &quot;&lt;h1&gt;hello world&lt;/h1&gt;&quot; &gt; /var/www/html/index.html</code></pre>
+<h2 id="utilització-de-packer-per-crear-la-imatge-i-ansible-per-installar-el-software">Utilització de Packer per crear la imatge i Ansible per instal·lar el software:<a name="id6"></a></h2>
+<p><strong>Per què Packer i Ansible?</strong></p>
+<p>En el nostre cas tenim un AutoScaling i en el cas de necessitar fer actualizacions en el codi de la aplicació (codi del servei de venta d’entrades), és necessari tornar a generar la imatge perquè l’AutoScaling inicï novament les instàncies amb la versió més recent de l’aplicació.</p>
+<p>Primer de tot instal·lem Packer i Ansible:</p>
+<p><strong>LINK DE LES PÀGINES OFICIALS:</strong></p>
+<ul>
+<li><p><strong>Packer:</strong> https://learn.hashicorp.com/tutorials/packer/get-started-install-cli</p></li>
+<li><p><strong>Ansible:</strong> https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html</p></li>
+</ul>
+<p>A continuació, creem els directoris de treball per ficar els fitxers de Packer i Ansible. L’estructura serà la següent:</p>
+<p><strong>mkdir packer | cd packer/ | mkdir ansible</strong></p>
+<p><em>Explicació del fitxer:</em></p>
+<ul>
+<li><p><strong>‘packer { …’:</strong></p>
+<ul>
+<li><em>required_plugins:</em> Instal·la els pluggins del proveïdor espceficat segons la versió de Packer.</li>
+</ul></li>
+<li><p><strong>source …:</strong> Especifiquem la imatge orígen, el Hardware i tot allò per definir la instància que crearem.</p></li>
+<li><p><strong>build:</strong></p>
+<ul>
+<li><em>sources:</em> A partir d’una imatge crea una instància PROVISIONAL.</li>
+<li><em>provisioner “ansible”:</em> Especifiquem quina eina utilitzarem per la instal·lació del Software (en el nostre cas ‘Ansible’).</li>
+<li><em>provisioner “file”:</em> Especifiquem si volem copiar algún fitxer a la màquina destí.</li>
+</ul></li>
+</ul>
+<p>Dins del directori ‘packer’ crearem el següent fitxer (<strong>ubuntu_aws_nginx.pkr.hcl</strong>) i posarem el següent:</p>
+<pre><code>packer {
+  required_plugins {
+    amazon = {
+      version = &quot;&gt;= 1.0.9&quot;
+      source  = &quot;github.com/hashicorp/amazon&quot;
+    }
+  }
+}
+
+source &quot;amazon-ebs&quot; &quot;ubuntu&quot; {
+  secret_key = &quot;XXXXXXXXXXXXXXXXXXXXXX&quot;
+  access_key = &quot;XXXXXXXXXXXXXXXXXXXXXX&quot;
+  ami_name        = &quot;nginx-ami-ubuntu-{{timestamp}}&quot;
+  ami_description = &quot;Nginx Web Server&quot;
+  instance_type   = &quot;t3.micro&quot;
+  region          = &quot;us-west-2&quot;
+  source_ami      = &quot;ami-0ee8244746ec5d6d4&quot;
+  ssh_username    = &quot;ubuntu&quot;
+  vpc_id = &quot;vpc-092fb7ce2a9e2f011&quot;
+  subnet_id = &quot;subnet-0ff1c6f3fd4a4b43d&quot;
+  associate_public_ip_address = &quot;true&quot;
+  tags = {
+    Name = &quot;Nginx&quot;
+    Os   = &quot;Ubuntu 20.04&quot;
+  }
+}
+
+build {
+  name = &quot;nginx-ami&quot;
+  sources = [
+    &quot;source.amazon-ebs.ubuntu&quot;
+  ]
+  
+  provisioner &quot;ansible&quot; {
+    playbook_file   = &quot;ansible/playbook_ubuntu.yml&quot;
+  }
+
+  provisioner &quot;file&quot; {
+    source      = &quot;config/webapp.conf&quot;
+    destination = &quot;/tmp/webapp.conf&quot;
+  }
+}</code></pre>
+<p><em>Explicació del fitxer:</em></p>
+<ul>
+<li><strong>‘tasks’:</strong>
+<ul>
+<li><em>name (1):</em> Instal·lem NGINX.</li>
+<li><em>name (2):</em> Inicialitzem NGINX.</li>
+<li><em>name (3):</em> Remplacem la documentació de ‘root’ per la nostra.</li>
+</ul></li>
+<li><strong>handlers:</strong> Especifiquem una tasca que quan li arribi una notificació (en el nostre cas, quan s’hagin copiat els fitxers), reinicï NGINX.</li>
+</ul>
+<p>Dins del directori ‘ansible’ crearem el ‘playbook’ (<strong>playbook_ubuntu.yml</strong>) amb la instal·lació d’NGINX:</p>
+<pre><code>---
+- name: &#39;Install nginx&#39;
+  hosts: default
+
+  tasks:
+    - name: Install nginx
+      apt:
+        name: nginx
+        state: present
+      become: yes
+
+    - name: start nginx
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+      become: yes
+
+    - name: Update default document root
+      become: yes
+      replace: 
+        path: &quot;/etc/nginx/nginx.conf&quot;
+        replace: &quot;root         /usr/share/nginx/html/app;&quot;
+        regexp: &quot;root         /usr/share/nginx/html;&quot;
+      notify: restart nginx
+
+  handlers:
+    - name: restart nginx
+      service:
+        name: nginx
+        state: restarted
+      become: yes</code></pre>
+<p>Un cop fets els fitxers, els pasos previs següents:</p>
+<ul>
+<li>Entrem en el nostre compte d’AWS i creem una VPC (amb subnet) ‘default’ associada al nostre usuari.</li>
+</ul>
+<p>Ara executem les següents comandes a la línea de comandes:</p>
+<ul>
+<li>Baixem els pluggins que requerixi el fitxer de Packer:</li>
+</ul>
+<pre><code>packer init</code></pre>
+<ul>
+<li>Validem la sintàxi del fitxer ‘Packer’, sigui ‘.json’ o ‘.hcl’:</li>
+</ul>
+<pre><code>packer validate ubuntu_aws_nginx.pck.hcl</code></pre>
+<ul>
+<li>Compilem i contruim la imatge a ‘AWS’:</li>
+</ul>
+<pre><code>packer build ubuntu_nginx.pck.hcl</code></pre>
+<p><strong>Validacions fetes a la interfície gràfica d’AWS i a la línea de comandes:</strong></p>
+<ul>
+<li>VPC Packer:</li>
+</ul>
+<figure>
+<img src="recursos_imatges/packer_vpc.jpg?raw=true" title="VPC creada per que funcioni Packer" alt="" /><figcaption>VPC Packer</figcaption>
+</figure>
+<ul>
+<li>AMI generada correctament:</li>
+</ul>
+<figure>
+<img src="recursos_imatges/packer_succes.png?raw=true" title="AMI generada correctament" alt="" /><figcaption>AMI generada correctament</figcaption>
+</figure>
+<ul>
+<li>Instància creada per Packer:</li>
+</ul>
+<figure>
+<img src="recursos_imatges/instance.jpg?raw=true" title="Instància creada per Packer" alt="" /><figcaption>Instància creada per Packer</figcaption>
+</figure>
+<ul>
+<li>AMI amb NGINX:</li>
+</ul>
+<figure>
+<img src="recursos_imatges/AMI_NGINX.jpg?raw=true" title="AMI NGINX" alt="" /><figcaption>AMI amb NGINX</figcaption>
+</figure>
+<p><strong>CONCEPTES A TENIR EN COMPTE:</strong></p>
+<p>provisioner “ansible-local” <strong>VS</strong> provisioner “ansible”:</p>
+<p><strong>Type:</strong> ansible -&gt; CMIIW Run ansible on machine running the packer (<strong>aka local machine</strong>)</p>
+<p><strong>Type:</strong> ansible-local -&gt; CMIIW Run ansible on machine created by packer (<strong>aka remote machine</strong>)</p>
+<h2 id="conclusions-finals">Conclusions finals:<a name="id7"></a></h2>
+<p>Un cop finalitzat el projecte ens hem donat compte de la gran magnitud i utilitat de les eines que segueixen la filosofia ‘IaC’, així com de la virtualització de màquines, que de fet, van de la mà. Es molt important començar a entendre que hi ha moltes eines que realitzen les mateixes funcions però que n’hi ha unes que destaquen entre les altres. Per exemple, Terraform és una eina molt potent per orquestrar infraestructures ja que es mutliproveidor i multiplataforma, a més de seguir un estil declaratiu (li dius el resultat però no com ho ha d’obtenir), que vol dir que nosaltres especifiquem que volem i el software ja es busca la vida per tenir el resultat final.</p>
+<p>En el cas d’Ansible (un altre eina d’automatizació), destaca per instal·lar software en S.O de màquines “vives” de forma local o remota, tant en màquines virtuals com reals a més a més, és tracta d’una eina <em>client-less</em>, que vol dir que no necesita cap software client per funcionar.</p>
+<p>D’altra banda, tenim Packer, l’eina què ens garanteix inmutabilitat gràcies a les seves templates. La inmutabilitat ens garanteix gràcies a què totes les imatges que creem amb la plantilla seràn exactament iguals ja que especifiquem dins les versions del S.O, Software, etc.</p>
+<p>Respecte al nostre projecte en concret, per falta de temps no hem pogut arribar fins on ens hagués agradat.</p>
+<p>Encara això, hem pogut despelgar solucions parcials a Terraform utilitzant com a proveïdor AWS, com ara; desplegar un sistema de balanceig de càrrega (ALB) contra servidors NGINX en màquines diferents, i per altre banda, hem pogut fer l’autoescalat horitzontal de varies màquines ubicades a diferents CPDs (regions) on definim polítiques (regles) per auto-escalar i executar alarmes del servei CloudWatch. També hem pogut generar una imatge customitzada del servidor NGINX emprant Packer amb Ansible en local i guardant la imatge resultant de forma autòmatica a AWS.</p>
+<h2 id="bibliografía">Bibliografía:<a name="id8"></a></h2>
+<p><strong>Documentació oficial utilitzada:</strong></p>
+<ul>
+<li>https://www.awsacademy.com</li>
+<li>https://docs.aws.amazon.com/</li>
+<li>https://www.terraform.io/</li>
+<li>https://www.packer.io/</li>
+<li>https://www.ansible.com/</li>
+<li>https://www.blazemeter.com/</li>
+<li>https://obsproject.com/es</li>
+<li>https://shotcut.org/</li>
+</ul>
+<p><strong>Recomanacions pròpies que ens han sigut de molta utilitat:</strong></p>
+<ul>
+<li>https://youtu.be/iRaai1IBlB0</li>
+<li>https://youtu.be/SLB_c_ayRMo</li>
+<li>https://morethancertified.com/</li>
+<li>https://www.freecodecamp.org/</li>
+<li>https://uvinum.engineering/versionando-los-templates-con-packer-11c9206ae26a</li>
+<li>https://github.com/quickbooks2018/Terraform-Classic-Modules/tree/master/modules</li>
+<li>https://docs.gitlab.com/ee/user/infrastructure/iac/</li>
+</ul>

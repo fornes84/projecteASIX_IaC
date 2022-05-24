@@ -1,0 +1,32 @@
+---
+- name: 'Install nginx'
+  hosts: default
+
+  tasks:
+    - name: Install nginx
+      apt:
+        name: nginx
+        state: present
+      become: yes
+
+    - name: start nginx
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+      become: yes
+
+    - name: Update default document root
+      become: yes
+      replace: 
+        path: "/etc/nginx/nginx.conf"
+        replace: "root         /usr/share/nginx/html/app;"
+        regexp: "root         /usr/share/nginx/html;"
+      notify: restart nginx
+
+  handlers:
+    - name: restart nginx
+      service:
+        name: nginx
+        state: restarted
+      become: yes
