@@ -44,5 +44,5 @@ La idea és que el servei pugui atendre molta càrrega de peticions 'http/s'. Aq
 
 Clicar aquí sota, per accedir a la documentació tècnica:
 
-[HowTo_Deployment_and_Provisioning](https://github.com/fornes84/projecte_IaC/HowTo-ASIX-VM_Deployment_and_Provisioning.md)
+[HowTo_Deployment_and_Provisioning](https://github.com/fornes84/projecte_IaC/blob/master/HowTo-ASIX-VM_Deployment_and_Provisioning.md)
 
